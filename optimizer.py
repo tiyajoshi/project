@@ -26,7 +26,7 @@ def get_ats_suggestions(resume_text, job_description, missing_keywords):
     if "@" not in resume_text: 
         suggestions.append("Add a email address.")
     
-    if "Linkedin" not in resume_lower:
+    if "linkedin" not in resume_lower:
         suggestions.append("Add your LinkedIn profile URL.")
     
     if "github" not in resume_lower:

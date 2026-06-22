@@ -3,7 +3,7 @@ from resume_parser import parse_resume
 from matcher import calculate_match_score, get_missing_keywords
 from optimizer import get_ats_suggestions
 from cover_letter import generate_cover_letter
-from database import init_db, add_application, get_all_applications
+from database import init_db, add_application, get_all_applications, delete_application
 import tempfile
 import os
 
@@ -233,8 +233,22 @@ with tab1:
         uploaded_file = st.file_uploader("Upload PDF", type="pdf", label_visibility="collapsed")
     with col2:
         st.markdown('<p class="section-label">Job Description</p>', unsafe_allow_html=True)
-        job_desc = st.text_area("JD", height=150, label_visibility="collapsed", placeholder="Paste the job description here...")
 
+        SAMPLE_JDS = {
+            "Write my own": "",
+            "Data Analyst": "We are looking for a Data Analyst with skills in Python, SQL, pandas, data visualization, Power BI, and machine learning. Strong communication and problem solving skills required.",
+            "Data Scientist": "Seeking a Data Scientist proficient in Python, machine learning, scikit-learn, feature engineering, statistics, and model evaluation. Experience with data pipelines and SQL is a plus.",
+            "Business Analyst": "Looking for a Business Analyst with strong skills in Excel, SQL, data analysis, stakeholder communication, and process improvement. Power BI or Tableau experience preferred."
+        }
+
+        sample_choice = st.selectbox("Use a sample job description", options=list(SAMPLE_JDS.keys()), label_visibility="collapsed")
+        job_desc = st.text_area(
+            "JD",
+            value=SAMPLE_JDS[sample_choice],
+            height=150,
+            label_visibility="collapsed",
+            placeholder="Paste the job description here..."
+        )    
     st.markdown('<p class="section-label">A Little About You</p>', unsafe_allow_html=True)
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -314,9 +328,20 @@ with tab2:
     records = get_all_applications()
 
     if records:
-        import pandas as pd
-        df = pd.DataFrame(records, columns=["Job Title", "Company", "Match Score (%)", "Skills Found", "Missing Keywords", "Date Added"])
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        for rec in records:
+            app_id, job_title, company, score, skills_found, missing_kw, date_added = rec
+            col1, col2 = st.columns([6, 1])
+            with col1:
+                st.markdown(f"""
+                <div class="soft-card">
+                    <b>{job_title}</b> at <b>{company}</b><br>
+                    Match Score: {score}% &nbsp;|&nbsp; Skills Found: {skills_found} &nbsp;|&nbsp; Missing: {missing_kw}<br>
+                    <span style="color:#A8998A; font-size:0.85rem;">{date_added}</span>
+                </div>
+                """, unsafe_allow_html=True)
+            with col2:
+                if st.button("🗑️ Delete", key=f"delete_{app_id}"):
+                    delete_application(app_id)
+                    st.rerun()
     else:
         st.markdown('<div class="soft-card">No applications analyzed yet. Run an analysis in the first tab to see it here.</div>', unsafe_allow_html=True)
-

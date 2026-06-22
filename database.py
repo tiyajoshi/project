@@ -4,7 +4,6 @@ from datetime import datetime
 DB_NAME = "career_assistant.db"
 
 def init_db():
-    """Create the applications table if it doesn't exist."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute("""
@@ -23,7 +22,6 @@ def init_db():
     conn.close()
 
 def add_application(name, job_title, company, score, skills_count, missing_count):
-    """Save a new analyzed application to the database."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute("""
@@ -34,18 +32,16 @@ def add_application(name, job_title, company, score, skills_count, missing_count
     conn.close()
 
 def get_all_applications():
-    """Fetch all saved applications, most recent first."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("SELECT job_title, company, match_score, skills_found, missing_keywords, date_added FROM applications ORDER BY id DESC")
+    cursor.execute("SELECT id, job_title, company, match_score, skills_found, missing_keywords, date_added FROM applications ORDER BY id DESC")
     rows = cursor.fetchall()
     conn.close()
     return rows
 
-def delete_application(date_added, company):
-    """Delete a specific application record."""
+def delete_application(app_id):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM applications WHERE date_added = ? AND company = ?", (date_added, company))
+    cursor.execute("DELETE FROM applications WHERE id = ?", (app_id,))
     conn.commit()
     conn.close()

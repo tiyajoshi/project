@@ -3,10 +3,12 @@ from resume_parser import parse_resume
 from matcher import calculate_match_score, get_missing_keywords
 from optimizer import get_ats_suggestions
 from cover_letter import generate_cover_letter
+from database import init_db, add_application, get_all_applications
 import tempfile
 import os
 
 st.set_page_config(page_title="AI Career Assistant & ATS Optimizer", page_icon="🤎", layout="wide")
+init_db()
 
 st.markdown("""
 <style>
@@ -207,6 +209,10 @@ st.markdown("""
     border-radius: 14px;
     padding: 0.6rem;
 }
+
+.stDataFrame {
+    background-color: #FFFDFA;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -218,75 +224,99 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-col1, col2 = st.columns(2)
-with col1:
-    st.markdown('<p class="section-label">Resume</p>', unsafe_allow_html=True)
-    uploaded_file = st.file_uploader("Upload PDF", type="pdf", label_visibility="collapsed")
-with col2:
-    st.markdown('<p class="section-label">Job Description</p>', unsafe_allow_html=True)
-    job_desc = st.text_area("JD", height=150, label_visibility="collapsed", placeholder="Paste the job description here...")
+tab1, tab2 = st.tabs(["🔍 Analyze Resume", "📋 Past Applications"])
 
-st.markdown('<p class="section-label">A Little About You</p>', unsafe_allow_html=True)
-c1, c2, c3 = st.columns(3)
-with c1:
-    name = st.text_input("Name", placeholder="Tiya Joshi", label_visibility="collapsed")
-with c2:
-    job_title = st.text_input("Role", placeholder="Data Analyst", label_visibility="collapsed")
-with c3:
-    company = st.text_input("Company", placeholder="Yash Technologies", label_visibility="collapsed")
-experience = st.text_input("Exp", placeholder="One line about your experience...", label_visibility="collapsed")
+with tab1:
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown('<p class="section-label">Resume</p>', unsafe_allow_html=True)
+        uploaded_file = st.file_uploader("Upload PDF", type="pdf", label_visibility="collapsed")
+    with col2:
+        st.markdown('<p class="section-label">Job Description</p>', unsafe_allow_html=True)
+        job_desc = st.text_area("JD", height=150, label_visibility="collapsed", placeholder="Paste the job description here...")
 
-st.markdown("<br>", unsafe_allow_html=True)
-analyze = st.button("Analyze My Resume")
+    st.markdown('<p class="section-label">A Little About You</p>', unsafe_allow_html=True)
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        name = st.text_input("Name", placeholder="Tiya Joshi", label_visibility="collapsed")
+    with c2:
+        job_title = st.text_input("Role", placeholder="Data Analyst", label_visibility="collapsed")
+    with c3:
+        company = st.text_input("Company", placeholder="Yash Technologies", label_visibility="collapsed")
+    experience = st.text_input("Exp", placeholder="One line about your experience...", label_visibility="collapsed")
 
-if analyze:
-    if uploaded_file and job_desc:
-        with st.spinner("Reading between the lines..."):
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                tmp.write(uploaded_file.read())
-                tmp_path = tmp.name
-            result = parse_resume(tmp_path)
-            resume_text = result["raw_text"]
-            score = calculate_match_score(resume_text, job_desc)
-            missing = get_missing_keywords(resume_text, job_desc)
-            suggestions = get_ats_suggestions(resume_text, job_desc, missing)
-            os.unlink(tmp_path)
+    st.markdown("<br>", unsafe_allow_html=True)
+    analyze = st.button("Analyze My Resume")
 
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown(f"""
-        <div class="stamp-wrap">
-            <div class="stamp">
-                <div class="stamp-number">{score}%</div>
-                <div class="stamp-label">Match Score</div>
+    if analyze:
+        if uploaded_file and job_desc:
+            with st.spinner("Reading between the lines..."):
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                    tmp.write(uploaded_file.read())
+                    tmp_path = tmp.name
+                result = parse_resume(tmp_path)
+                resume_text = result["raw_text"]
+                score = calculate_match_score(resume_text, job_desc)
+                missing = get_missing_keywords(resume_text, job_desc)
+                suggestions = get_ats_suggestions(resume_text, job_desc, missing)
+                os.unlink(tmp_path)
+
+                # Save to database automatically
+                add_application(
+                    name=name or "Unknown",
+                    job_title=job_title or "Not specified",
+                    company=company or "Not specified",
+                    score=score,
+                    skills_count=len(result["skills"]),
+                    missing_count=len(missing)
+                )
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="stamp-wrap">
+                <div class="stamp">
+                    <div class="stamp-number">{score}%</div>
+                    <div class="stamp-label">Match Score</div>
+                </div>
             </div>
-        </div>
-        <div class="stat-row">
-            <div class="stat-pill"><div class="num">{len(result['skills'])}</div><div class="lab">Skills Found</div></div>
-            <div class="stat-pill"><div class="num">{len(missing)}</div><div class="lab">Missing</div></div>
-            <div class="stat-pill"><div class="num">{result['word_count']}</div><div class="lab">Words</div></div>
-        </div>
-        """, unsafe_allow_html=True)
+            <div class="stat-row">
+                <div class="stat-pill"><div class="num">{len(result['skills'])}</div><div class="lab">Skills Found</div></div>
+                <div class="stat-pill"><div class="num">{len(missing)}</div><div class="lab">Missing</div></div>
+                <div class="stat-pill"><div class="num">{result['word_count']}</div><div class="lab">Words</div></div>
+            </div>
+            """, unsafe_allow_html=True)
 
-        st.markdown("<br>", unsafe_allow_html=True)
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown('<p class="section-label">Skills Found</p>', unsafe_allow_html=True)
-            tags = "".join([f'<span class="tag-found">{s}</span>' for s in result["skills"]]) or "<span style='color:#A8998A'>None detected</span>"
-            st.markdown(f'<div class="soft-card">{tags}</div>', unsafe_allow_html=True)
-        with col2:
-            st.markdown('<p class="section-label">Worth Adding</p>', unsafe_allow_html=True)
-            tags2 = "".join([f'<span class="tag-missing">{m}</span>' for m in missing]) or "<span style='color:#A8998A'>Nothing missing</span>"
-            st.markdown(f'<div class="soft-card">{tags2}</div>', unsafe_allow_html=True)
+            st.markdown("<br>", unsafe_allow_html=True)
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown('<p class="section-label">Skills Found</p>', unsafe_allow_html=True)
+                tags = "".join([f'<span class="tag-found">{s}</span>' for s in result["skills"]]) or "<span style='color:#A8998A'>None detected</span>"
+                st.markdown(f'<div class="soft-card">{tags}</div>', unsafe_allow_html=True)
+            with col2:
+                st.markdown('<p class="section-label">Worth Adding</p>', unsafe_allow_html=True)
+                tags2 = "".join([f'<span class="tag-missing">{m}</span>' for m in missing]) or "<span style='color:#A8998A'>Nothing missing</span>"
+                st.markdown(f'<div class="soft-card">{tags2}</div>', unsafe_allow_html=True)
 
-        st.markdown('<p class="section-label">Suggestions</p>', unsafe_allow_html=True)
-        for s in suggestions:
-            st.markdown(f'<div class="suggestion-row">{s}</div>', unsafe_allow_html=True)
+            st.markdown('<p class="section-label">Suggestions</p>', unsafe_allow_html=True)
+            for s in suggestions:
+                st.markdown(f'<div class="suggestion-row">{s}</div>', unsafe_allow_html=True)
 
-        if name and job_title and company:
-            st.markdown('<p class="section-label">Your Cover Letter</p>', unsafe_allow_html=True)
-            letter = generate_cover_letter(name, job_title, company, result["skills"], experience)
-            st.text_area("Letter", letter, height=280, label_visibility="collapsed")
-            st.download_button("Download Letter", letter, file_name="cover_letter.txt")
+            if name and job_title and company:
+                st.markdown('<p class="section-label">Your Cover Letter</p>', unsafe_allow_html=True)
+                letter = generate_cover_letter(name, job_title, company, result["skills"], experience)
+                st.text_area("Letter", letter, height=280, label_visibility="collapsed")
+                st.download_button("Download Letter", letter, file_name="cover_letter.txt")
+        else:
+            st.error("Please upload a resume and paste a job description.")
+
+with tab2:
+    st.markdown('<p class="section-label">Your Application History</p>', unsafe_allow_html=True)
+    records = get_all_applications()
+
+    if records:
+        import pandas as pd
+        df = pd.DataFrame(records, columns=["Job Title", "Company", "Match Score (%)", "Skills Found", "Missing Keywords", "Date Added"])
+        st.dataframe(df, use_container_width=True, hide_index=True)
     else:
-        st.error("Please upload a resume and paste a job description.")
+        st.markdown('<div class="soft-card">No applications analyzed yet. Run an analysis in the first tab to see it here.</div>', unsafe_allow_html=True)
 
